@@ -69,9 +69,10 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 static ble_estc_service_t m_estc_service;
 
-static ble_uuid_t m_adv_uuids[] =                                               /**< Universally unique service identifiers. */
+static ble_uuid_t m_adv_uuids[] =
 {
-    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE}
+    {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE},
+    {ESTC_SERVICE_UUID, 0} 
 };
 
 
@@ -386,21 +387,14 @@ static void advertising_init(void)
 
     memset(&init, 0, sizeof(init));
 
-    init.advdata.name_type          = BLE_ADVDATA_SHORT_NAME;
-    init.advdata.short_name_len     = 7;   // Mikhail
-    init.advdata.include_appearance = false;
-    init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+    init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
+    init.advdata.flags     = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
-    init.advdata.uuids_complete.uuid_cnt = 0;
-    init.advdata.uuids_complete.p_uuids  = NULL;
-
-
-    init.srdata.name_type = BLE_ADVDATA_FULL_NAME;
-    init.srdata.uuids_complete.uuid_cnt =
+    // TODO: 8. Add service UUIDs to advertising data
+    init.advdata.uuids_complete.uuid_cnt =
         sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
+    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
 
-    
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
     init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
@@ -412,7 +406,6 @@ static void advertising_init(void)
 
     ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
-
 
 /**@brief Function for initializing buttons and leds.
  *
@@ -486,8 +479,9 @@ int main(void)
     ble_stack_init();
     gap_params_init();
     gatt_init();
-    advertising_init();
     services_init();
+    m_adv_uuids[1].type = m_estc_service.uuid_type;
+    advertising_init();
     conn_params_init();
 
     // Start execution.
