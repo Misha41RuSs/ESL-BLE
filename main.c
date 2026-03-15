@@ -69,10 +69,20 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 static ble_estc_service_t m_estc_service;
 
+// Workshop 12: application timers for periodic characteristic updates
+APP_TIMER_DEF(m_char2_timer);   /**< Fires every 2 s  -> Notification on Char 2 */
+APP_TIMER_DEF(m_char3_timer);   /**< Fires every 5 s  -> Indication  on Char 3 */
+
+#define CHAR2_INTERVAL_MS   2000   /**< Notification update period (ms) */
+#define CHAR3_INTERVAL_MS   5000   /**< Indication  update period (ms) */
+
+static int32_t m_char2_counter = 0;   /**< Value sent via Notification */
+static int32_t m_char3_counter = 0;   /**< Value sent via Indication  */
+
 static ble_uuid_t m_adv_uuids[] =
 {
     {BLE_UUID_DEVICE_INFORMATION_SERVICE, BLE_UUID_TYPE_BLE},
-    {ESTC_SERVICE_UUID, 0} 
+    {ESTC_SERVICE_UUID, 0}
 };
 
 
@@ -95,6 +105,24 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
+/**@brief Timer callback – sends a BLE Notification on Char 2 every CHAR2_INTERVAL_MS. */
+static void char2_timer_handler(void *p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    m_char2_counter++;
+    NRF_LOG_INFO("[Timer] Notify char2 counter=%d", m_char2_counter);
+    estc_update_characteristic_2_value(&m_estc_service, &m_char2_counter);
+}
+
+/**@brief Timer callback – sends a BLE Indication on Char 3 every CHAR3_INTERVAL_MS. */
+static void char3_timer_handler(void *p_context)
+{
+    UNUSED_PARAMETER(p_context);
+    m_char3_counter++;
+    NRF_LOG_INFO("[Timer] Indicate char3 counter=%d", m_char3_counter);
+    estc_update_characteristic_3_value(&m_estc_service, &m_char3_counter);
+}
+
 /**@brief Function for the Timer initialization.
  *
  * @details Initializes the timer module. This creates and starts application timers.
@@ -103,6 +131,18 @@ static void timers_init(void)
 {
     // Initialize timer module.
     ret_code_t err_code = app_timer_init();
+    APP_ERROR_CHECK(err_code);
+
+    // Create Char 2 timer (Notification, 2 s)
+    err_code = app_timer_create(&m_char2_timer,
+                                APP_TIMER_MODE_REPEATED,
+                                char2_timer_handler);
+    APP_ERROR_CHECK(err_code);
+
+    // Create Char 3 timer (Indication, 5 s)
+    err_code = app_timer_create(&m_char3_timer,
+                                APP_TIMER_MODE_REPEATED,
+                                char3_timer_handler);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -236,11 +276,19 @@ static void conn_params_init(void)
  */
 static void application_timers_start(void)
 {
-    /* YOUR_JOB: Start your timers. below is an example of how to start a timer.
-       ret_code_t err_code;
-       err_code = app_timer_start(m_app_timer_id, TIMER_INTERVAL, NULL);
-       APP_ERROR_CHECK(err_code); */
+    ret_code_t err_code;
 
+    // Start Char 2 notification timer (every 2 s)
+    err_code = app_timer_start(m_char2_timer,
+                               APP_TIMER_TICKS(CHAR2_INTERVAL_MS),
+                               NULL);
+    APP_ERROR_CHECK(err_code);
+
+    // Start Char 3 indication timer (every 5 s)
+    err_code = app_timer_start(m_char3_timer,
+                               APP_TIMER_TICKS(CHAR3_INTERVAL_MS),
+                               NULL);
+    APP_ERROR_CHECK(err_code);
 }
 
 
@@ -281,6 +329,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
     {
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected.");
+            m_conn_handle = BLE_CONN_HANDLE_INVALID;
+            estc_ble_service_on_ble_event(p_ble_evt, &m_estc_service);
             // LED indication will be changed when advertising starts.
             break;
 
@@ -289,6 +339,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+            estc_ble_service_on_ble_event(p_ble_evt, &m_estc_service);
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
             APP_ERROR_CHECK(err_code);
             break;
@@ -319,6 +370,11 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
+            break;
+
+        case BLE_GATTS_EVT_HVC:
+            // Indication confirmed – forward to service handler for logging
+            estc_ble_service_on_ble_event(p_ble_evt, &m_estc_service);
             break;
 
         default:
@@ -387,13 +443,14 @@ static void advertising_init(void)
 
     memset(&init, 0, sizeof(init));
 
+    // Full device name in the advertising data (flags + name fit within 31 bytes)
     init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
     init.advdata.flags     = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 
-    // TODO: 8. Add service UUIDs to advertising data
-    init.advdata.uuids_complete.uuid_cnt =
+    // Service UUIDs go into the scan response so the full name is never truncated
+    init.srdata.uuids_complete.uuid_cnt =
         sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
-    init.advdata.uuids_complete.p_uuids  = m_adv_uuids;
+    init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
 
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
