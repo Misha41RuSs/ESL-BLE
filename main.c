@@ -69,15 +69,15 @@ BLE_ADVERTISING_DEF(m_advertising);                                             
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;                        /**< Handle of the current connection. */
 static ble_estc_service_t m_estc_service;
 
-// Workshop 12: application timers for periodic characteristic updates
-APP_TIMER_DEF(m_char2_timer);   /**< Fires every 2 s  -> Notification on Char 2 */
-APP_TIMER_DEF(m_char3_timer);   /**< Fires every 5 s  -> Indication  on Char 3 */
+// Workshop 12
+APP_TIMER_DEF(m_char2_timer);   
+APP_TIMER_DEF(m_char3_timer);   
 
-#define CHAR2_INTERVAL_MS   2000   /**< Notification update period (ms) */
-#define CHAR3_INTERVAL_MS   5000   /**< Indication  update period (ms) */
+#define CHAR2_INTERVAL_MS   2000   
+#define CHAR3_INTERVAL_MS   5000  
 
-static int32_t m_char2_counter = 0;   /**< Value sent via Notification */
-static int32_t m_char3_counter = 0;   /**< Value sent via Indication  */
+static int32_t m_char2_counter = 0;   
+static int32_t m_char3_counter = 0;   
 
 static ble_uuid_t m_adv_uuids[] =
 {
@@ -105,7 +105,6 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
-/**@brief Timer callback – sends a BLE Notification on Char 2 every CHAR2_INTERVAL_MS. */
 static void char2_timer_handler(void *p_context)
 {
     UNUSED_PARAMETER(p_context);
@@ -114,7 +113,7 @@ static void char2_timer_handler(void *p_context)
     estc_update_characteristic_2_value(&m_estc_service, &m_char2_counter);
 }
 
-/**@brief Timer callback – sends a BLE Indication on Char 3 every CHAR3_INTERVAL_MS. */
+
 static void char3_timer_handler(void *p_context)
 {
     UNUSED_PARAMETER(p_context);

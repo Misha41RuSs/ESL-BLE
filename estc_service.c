@@ -47,42 +47,21 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
 {
     ret_code_t error_code = NRF_SUCCESS;
 
+    // Characteristic 1 - Read/Write
     {
-        ble_uuid_t char_uuid;
-        char_uuid.type = service->uuid_type;
-        char_uuid.uuid = ESTC_GATT_CHAR_1_UUID;
-
         ble_gatts_char_md_t char_md = {0};
         char_md.char_props.read  = 1;
         char_md.char_props.write = 1;
 
-        ble_gatts_attr_md_t attr_md = {0};
-        attr_md.vloc = BLE_GATTS_VLOC_STACK;
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
-        ble_gatts_attr_t attr_char_value = {0};
-        attr_char_value.p_uuid    = &char_uuid;
-        attr_char_value.p_attr_md = &attr_md;
-
-        int32_t initial_value = 0;
-        attr_char_value.init_len = sizeof(int32_t);
-        attr_char_value.max_len  = sizeof(int32_t);
-        attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                     &char_md,
-                                                     &attr_char_value,
-                                                     &service->char1_handles);
-        APP_ERROR_CHECK(error_code);
+        error_code = add_characteristic(service, 
+                                       ESTC_GATT_CHAR_1_UUID, 
+                                       &char_md, 
+                                       &service->char1_handles);
+        if (error_code != NRF_SUCCESS) return error_code;
     }
-
     
+    // Characteristic 2 - Notify
     {
-        ble_uuid_t char_uuid;
-        char_uuid.type = service->uuid_type;
-        char_uuid.uuid = ESTC_GATT_CHAR_2_UUID;
-
         ble_gatts_attr_md_t cccd_md;
         cccd_md_init(&cccd_md);
 
@@ -90,32 +69,15 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
         char_md.char_props.notify = 1;   
         char_md.p_cccd_md         = &cccd_md;
 
-        ble_gatts_attr_md_t attr_md = {0};
-        attr_md.vloc = BLE_GATTS_VLOC_STACK;
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
-        ble_gatts_attr_t attr_char_value = {0};
-        attr_char_value.p_uuid    = &char_uuid;
-        attr_char_value.p_attr_md = &attr_md;
-
-        int32_t initial_value = 0;
-        attr_char_value.init_len = sizeof(int32_t);
-        attr_char_value.max_len  = sizeof(int32_t);
-        attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                     &char_md,
-                                                     &attr_char_value,
-                                                     &service->char2_handles);
-        APP_ERROR_CHECK(error_code);
+        error_code = add_characteristic(service,
+                                       ESTC_GATT_CHAR_2_UUID,
+                                       &char_md,
+                                       &service->char2_handles);
+        if (error_code != NRF_SUCCESS) return error_code;
     }
 
+    // Characteristic 3 - Indicate
     {
-        ble_uuid_t char_uuid;
-        char_uuid.type = service->uuid_type;
-        char_uuid.uuid = ESTC_GATT_CHAR_3_UUID;
-
         ble_gatts_attr_md_t cccd_md;
         cccd_md_init(&cccd_md);
 
@@ -123,30 +85,48 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
         char_md.char_props.indicate = 1;  
         char_md.p_cccd_md           = &cccd_md;
 
-        ble_gatts_attr_md_t attr_md = {0};
-        attr_md.vloc = BLE_GATTS_VLOC_STACK;
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
-        ble_gatts_attr_t attr_char_value = {0};
-        attr_char_value.p_uuid    = &char_uuid;
-        attr_char_value.p_attr_md = &attr_md;
-
-        int32_t initial_value = 0;
-        attr_char_value.init_len = sizeof(int32_t);
-        attr_char_value.max_len  = sizeof(int32_t);
-        attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                     &char_md,
-                                                     &attr_char_value,
-                                                     &service->char3_handles);
-        APP_ERROR_CHECK(error_code);
+        error_code = add_characteristic(service,
+                                       ESTC_GATT_CHAR_3_UUID,
+                                       &char_md,
+                                       &service->char3_handles);
+        if (error_code != NRF_SUCCESS) return error_code;
     }
 
     return NRF_SUCCESS;
 }
 
+
+static ret_code_t add_characteristic(ble_estc_service_t *service,
+                                     uint16_t uuid,
+                                     ble_gatts_char_md_t *char_md,
+                                     ble_gatts_handles_t *handles)
+{
+    ble_uuid_t char_uuid;
+    char_uuid.type = service->uuid_type;
+    char_uuid.uuid = uuid;
+
+    ble_gatts_attr_md_t attr_md = {0};
+    attr_md.vloc = BLE_GATTS_VLOC_STACK;
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
+
+    ble_gatts_attr_t attr_char_value = {0};
+    attr_char_value.p_uuid    = &char_uuid;
+    attr_char_value.p_attr_md = &attr_md;
+
+    int32_t initial_value = 0;
+    attr_char_value.init_len = sizeof(int32_t);
+    attr_char_value.max_len  = sizeof(int32_t);
+    attr_char_value.p_value  = (uint8_t *)&initial_value;
+
+    ret_code_t error_code = sd_ble_gatts_characteristic_add(service->service_handle,
+                                                            char_md,
+                                                            &attr_char_value,
+                                                            handles);
+    APP_ERROR_CHECK(error_code);
+    
+    return error_code;
+}
 
 void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
 {
