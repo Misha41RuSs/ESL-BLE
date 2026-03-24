@@ -47,85 +47,80 @@ static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
 {
     ret_code_t error_code = NRF_SUCCESS;
 
-    // Characteristic 1 - Read/Write
+    // Characteristic 1 - LED State (Read/Write/Notify)
     {
-        ble_gatts_char_md_t char_md = {0};
-        char_md.char_props.read  = 1;
-        char_md.char_props.write = 1;
+        ble_gatts_attr_md_t cccd_md;
+        cccd_md_init(&cccd_md);
 
-        error_code = add_characteristic(service, 
-                                       ESTC_GATT_CHAR_1_UUID, 
-                                       &char_md, 
-                                       &service->char1_handles);
+        ble_gatts_char_md_t char_md = {0};
+        char_md.char_props.read   = 1;
+        char_md.char_props.write  = 1;
+        char_md.char_props.notify = 1;
+        char_md.p_cccd_md         = &cccd_md;
+
+        ble_uuid_t char_uuid;
+        char_uuid.type = service->uuid_type;
+        char_uuid.uuid = ESTC_GATT_CHAR_LED_STATE_UUID;
+
+        ble_gatts_attr_md_t attr_md = {0};
+        attr_md.vloc = BLE_GATTS_VLOC_STACK;
+        
+        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+        BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.write_perm);
+
+        ble_gatts_attr_t attr_char_value = {0};
+        attr_char_value.p_uuid    = &char_uuid;
+        attr_char_value.p_attr_md = &attr_md;
+
+        uint8_t initial_value = 0;
+        attr_char_value.init_len = sizeof(uint8_t);
+        attr_char_value.max_len  = sizeof(uint8_t);
+        attr_char_value.p_value  = (uint8_t *)&initial_value;
+
+        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
+                                                     &char_md,
+                                                     &attr_char_value,
+                                                     &service->led_state_handles);
         if (error_code != NRF_SUCCESS) return error_code;
     }
     
-    // Characteristic 2 - Notify
+    // Characteristic 2 - LED Color (Read/Write/Notify)
     {
         ble_gatts_attr_md_t cccd_md;
         cccd_md_init(&cccd_md);
 
         ble_gatts_char_md_t char_md = {0};
-        char_md.char_props.notify = 1;   
+        char_md.char_props.read   = 1;
+        char_md.char_props.write  = 1;
+        char_md.char_props.notify = 1;
         char_md.p_cccd_md         = &cccd_md;
 
-        error_code = add_characteristic(service,
-                                       ESTC_GATT_CHAR_2_UUID,
-                                       &char_md,
-                                       &service->char2_handles);
-        if (error_code != NRF_SUCCESS) return error_code;
-    }
+        ble_uuid_t char_uuid;
+        char_uuid.type = service->uuid_type;
+        char_uuid.uuid = ESTC_GATT_CHAR_LED_COLOR_UUID;
 
-    // Characteristic 3 - Indicate
-    {
-        ble_gatts_attr_md_t cccd_md;
-        cccd_md_init(&cccd_md);
+        ble_gatts_attr_md_t attr_md = {0};
+        attr_md.vloc = BLE_GATTS_VLOC_STACK;
+        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
 
-        ble_gatts_char_md_t char_md = {0};
-        char_md.char_props.indicate = 1;  
-        char_md.p_cccd_md           = &cccd_md;
+        ble_gatts_attr_t attr_char_value = {0};
+        attr_char_value.p_uuid    = &char_uuid;
+        attr_char_value.p_attr_md = &attr_md;
 
-        error_code = add_characteristic(service,
-                                       ESTC_GATT_CHAR_3_UUID,
-                                       &char_md,
-                                       &service->char3_handles);
+        uint32_t initial_value = 0;
+        attr_char_value.init_len = sizeof(uint32_t);
+        attr_char_value.max_len  = sizeof(uint32_t);
+        attr_char_value.p_value  = (uint8_t *)&initial_value;
+
+        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
+                                                     &char_md,
+                                                     &attr_char_value,
+                                                     &service->led_color_handles);
         if (error_code != NRF_SUCCESS) return error_code;
     }
 
     return NRF_SUCCESS;
-}
-
-
-static ret_code_t add_characteristic(ble_estc_service_t *service,
-                                     uint16_t uuid,
-                                     ble_gatts_char_md_t *char_md,
-                                     ble_gatts_handles_t *handles)
-{
-    ble_uuid_t char_uuid;
-    char_uuid.type = service->uuid_type;
-    char_uuid.uuid = uuid;
-
-    ble_gatts_attr_md_t attr_md = {0};
-    attr_md.vloc = BLE_GATTS_VLOC_STACK;
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
-    ble_gatts_attr_t attr_char_value = {0};
-    attr_char_value.p_uuid    = &char_uuid;
-    attr_char_value.p_attr_md = &attr_md;
-
-    int32_t initial_value = 0;
-    attr_char_value.init_len = sizeof(int32_t);
-    attr_char_value.max_len  = sizeof(int32_t);
-    attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-    ret_code_t error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                            char_md,
-                                                            &attr_char_value,
-                                                            handles);
-    APP_ERROR_CHECK(error_code);
-    
-    return error_code;
 }
 
 void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
@@ -147,74 +142,82 @@ void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
                          ble_evt->evt.gatts_evt.params.hvc.handle);
             break;
 
+        case BLE_GATTS_EVT_WRITE:
+        {
+            ble_gatts_evt_write_t const * p_evt_write = &ble_evt->evt.gatts_evt.params.write;
+            if (p_evt_write->handle == service->led_state_handles.value_handle && p_evt_write->len == sizeof(uint8_t))
+            {
+                if (service->evt_handler != NULL)
+                {
+                    ble_estc_evt_t evt;
+                    evt.evt_type = BLE_ESTC_EVT_LED_STATE_WRITE;
+                    evt.params.led_state = p_evt_write->data[0];
+                    service->evt_handler(service, &evt);
+                }
+            }
+            else if (p_evt_write->handle == service->led_color_handles.value_handle && p_evt_write->len == sizeof(uint32_t))
+            {
+                if (service->evt_handler != NULL)
+                {
+                    ble_estc_evt_t evt;
+                    evt.evt_type = BLE_ESTC_EVT_LED_COLOR_WRITE;
+                    memcpy(&evt.params.led_color, p_evt_write->data, sizeof(uint32_t));
+                    service->evt_handler(service, &evt);
+                }
+            }
+            break;
+        }
+
         default:
             break;
     }
 }
 
 
-void estc_update_characteristic_1_value(ble_estc_service_t *service, int32_t *value)
+void estc_update_led_state(ble_estc_service_t *service, uint8_t state)
 {
     if (service->connection_handle == BLE_CONN_HANDLE_INVALID)
     {
-        return;
+        return; 
     }
+
     ble_gatts_value_t gatts_value = {0};
-    gatts_value.len     = sizeof(int32_t);
+    gatts_value.len     = sizeof(uint8_t);
     gatts_value.offset  = 0;
-    gatts_value.p_value = (uint8_t *)value;
+    gatts_value.p_value = &state;
+    sd_ble_gatts_value_set(service->connection_handle, service->led_state_handles.value_handle, &gatts_value);
 
-    ret_code_t err_code = sd_ble_gatts_value_set(service->connection_handle,
-                                                  service->char1_handles.value_handle,
-                                                  &gatts_value);
-    if (err_code != NRF_SUCCESS)
-    {
-        NRF_LOG_ERROR("char1 value set error: 0x%08X", err_code);
-    }
-}
-
-void estc_update_characteristic_2_value(ble_estc_service_t *service, int32_t *value)
-{
-    if (service->connection_handle == BLE_CONN_HANDLE_INVALID)
-    {
-        return;
-    }
-
-    uint16_t len = sizeof(int32_t);
-
+    uint16_t len = sizeof(uint8_t);
     ble_gatts_hvx_params_t hvx_params = {0};
-    hvx_params.handle = service->char2_handles.value_handle;
+    hvx_params.handle = service->led_state_handles.value_handle;
     hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
     hvx_params.offset = 0;
     hvx_params.p_len  = &len;
-    hvx_params.p_data = (uint8_t *)value;
+    hvx_params.p_data = &state;
 
-    ret_code_t err_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
-    if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE)
-    {
-        NRF_LOG_ERROR("char2 notify error: 0x%08X", err_code);
-    }
+    sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
 }
 
-void estc_update_characteristic_3_value(ble_estc_service_t *service, int32_t *value)
+void estc_update_led_color(ble_estc_service_t *service, uint32_t color)
 {
     if (service->connection_handle == BLE_CONN_HANDLE_INVALID)
     {
-        return;
+        return; 
     }
 
-    uint16_t len = sizeof(int32_t);
+    ble_gatts_value_t gatts_value = {0};
+    gatts_value.len     = sizeof(uint32_t);
+    gatts_value.offset  = 0;
+    gatts_value.p_value = (uint8_t*)&color;
+    sd_ble_gatts_value_set(service->connection_handle, service->led_color_handles.value_handle, &gatts_value);
 
+    uint16_t len = sizeof(uint32_t);
     ble_gatts_hvx_params_t hvx_params = {0};
-    hvx_params.handle = service->char3_handles.value_handle;
-    hvx_params.type   = BLE_GATT_HVX_INDICATION;
+    hvx_params.handle = service->led_color_handles.value_handle;
+    hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
     hvx_params.offset = 0;
     hvx_params.p_len  = &len;
-    hvx_params.p_data = (uint8_t *)value;
+    hvx_params.p_data = (uint8_t *)&color;
 
-    ret_code_t err_code = sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
-    if (err_code != NRF_SUCCESS && err_code != NRF_ERROR_INVALID_STATE)
-    {
-        NRF_LOG_ERROR("char3 indicate error: 0x%08X", err_code);
-    }
+    sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
 }

@@ -125,6 +125,22 @@
 #define LOG_BACKEND_USB_UTILIZE_POWER_EVENTS 1
 #endif
 
+// <e> PWM Config
+#ifndef NRFX_PWM_ENABLED
+#define NRFX_PWM_ENABLED 1
+#endif
+
+#ifndef NRFX_PWM0_ENABLED
+#define NRFX_PWM0_ENABLED 1
+#endif
+
+#ifndef PWM_ENABLED
+#define PWM_ENABLED 1
+#endif
+
+#ifndef PWM0_ENABLED
+#define PWM0_ENABLED 1
+#endif
 // </e>
 
 #endif
