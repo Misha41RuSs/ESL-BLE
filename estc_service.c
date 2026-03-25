@@ -43,82 +43,74 @@ static void cccd_md_init(ble_gatts_attr_md_t *p_cccd_md)
     p_cccd_md->vloc = BLE_GATTS_VLOC_STACK;
 }
 
+static ret_code_t estc_ble_add_char(ble_estc_service_t *       service,
+                                    uint16_t                   uuid,
+                                    ble_gap_conn_sec_mode_t    read_perm,
+                                    ble_gap_conn_sec_mode_t    write_perm,
+                                    uint16_t                   val_len,
+                                    uint8_t *                  p_init_val,
+                                    ble_gatts_char_handles_t * p_handles)
+{
+    ble_gatts_attr_md_t cccd_md;
+    cccd_md_init(&cccd_md);
+
+    ble_gatts_char_md_t char_md = {0};
+    char_md.char_props.read   = 1;
+    char_md.char_props.write  = 1;
+    char_md.char_props.notify = 1;
+    char_md.p_cccd_md         = &cccd_md;
+
+    ble_uuid_t char_uuid;
+    char_uuid.type = service->uuid_type;
+    char_uuid.uuid = uuid;
+
+    ble_gatts_attr_md_t attr_md = {0};
+    attr_md.vloc       = BLE_GATTS_VLOC_STACK;
+    attr_md.read_perm  = read_perm;
+    attr_md.write_perm = write_perm;
+
+    ble_gatts_attr_t attr_char_value = {0};
+    attr_char_value.p_uuid    = &char_uuid;
+    attr_char_value.p_attr_md = &attr_md;
+    attr_char_value.init_len  = val_len;
+    attr_char_value.max_len   = val_len;
+    attr_char_value.p_value   = p_init_val;
+
+    return sd_ble_gatts_characteristic_add(service->service_handle,
+                                           &char_md,
+                                           &attr_char_value,
+                                           p_handles);
+}
+
 static ret_code_t estc_ble_add_characteristics(ble_estc_service_t *service)
 {
     ret_code_t error_code = NRF_SUCCESS;
+    ble_gap_conn_sec_mode_t read_perm;
+    ble_gap_conn_sec_mode_t write_perm;
 
-    // Characteristic 1 - LED State (Read/Write/Notify)
-    {
-        ble_gatts_attr_md_t cccd_md;
-        cccd_md_init(&cccd_md);
-
-        ble_gatts_char_md_t char_md = {0};
-        char_md.char_props.read   = 1;
-        char_md.char_props.write  = 1;
-        char_md.char_props.notify = 1;
-        char_md.p_cccd_md         = &cccd_md;
-
-        ble_uuid_t char_uuid;
-        char_uuid.type = service->uuid_type;
-        char_uuid.uuid = ESTC_GATT_CHAR_LED_STATE_UUID;
-
-        ble_gatts_attr_md_t attr_md = {0};
-        attr_md.vloc = BLE_GATTS_VLOC_STACK;
-        
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&attr_md.write_perm);
-
-        ble_gatts_attr_t attr_char_value = {0};
-        attr_char_value.p_uuid    = &char_uuid;
-        attr_char_value.p_attr_md = &attr_md;
-
-        uint8_t initial_value = 0;
-        attr_char_value.init_len = sizeof(uint8_t);
-        attr_char_value.max_len  = sizeof(uint8_t);
-        attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                     &char_md,
-                                                     &attr_char_value,
-                                                     &service->led_state_handles);
-        if (error_code != NRF_SUCCESS) return error_code;
-    }
+    // Characteristic 1 - LED State
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_ENC_NO_MITM(&write_perm);
+    uint8_t initial_state = 0;
     
-    // Characteristic 2 - LED Color (Read/Write/Notify)
-    {
-        ble_gatts_attr_md_t cccd_md;
-        cccd_md_init(&cccd_md);
+    error_code = estc_ble_add_char(service,
+                                   ESTC_GATT_CHAR_LED_STATE_UUID,
+                                   read_perm, write_perm,
+                                   sizeof(uint8_t), (uint8_t *)&initial_state,
+                                   &service->led_state_handles);
+    if (error_code != NRF_SUCCESS) return error_code;
+    
+    // Characteristic 2 - LED Color
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&write_perm);
+    uint32_t initial_color = 0;
 
-        ble_gatts_char_md_t char_md = {0};
-        char_md.char_props.read   = 1;
-        char_md.char_props.write  = 1;
-        char_md.char_props.notify = 1;
-        char_md.p_cccd_md         = &cccd_md;
-
-        ble_uuid_t char_uuid;
-        char_uuid.type = service->uuid_type;
-        char_uuid.uuid = ESTC_GATT_CHAR_LED_COLOR_UUID;
-
-        ble_gatts_attr_md_t attr_md = {0};
-        attr_md.vloc = BLE_GATTS_VLOC_STACK;
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
-        BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
-
-        ble_gatts_attr_t attr_char_value = {0};
-        attr_char_value.p_uuid    = &char_uuid;
-        attr_char_value.p_attr_md = &attr_md;
-
-        uint32_t initial_value = 0;
-        attr_char_value.init_len = sizeof(uint32_t);
-        attr_char_value.max_len  = sizeof(uint32_t);
-        attr_char_value.p_value  = (uint8_t *)&initial_value;
-
-        error_code = sd_ble_gatts_characteristic_add(service->service_handle,
-                                                     &char_md,
-                                                     &attr_char_value,
-                                                     &service->led_color_handles);
-        if (error_code != NRF_SUCCESS) return error_code;
-    }
+    error_code = estc_ble_add_char(service,
+                                   ESTC_GATT_CHAR_LED_COLOR_UUID,
+                                   read_perm, write_perm,
+                                   sizeof(uint32_t), (uint8_t *)&initial_color,
+                                   &service->led_color_handles);
+    if (error_code != NRF_SUCCESS) return error_code;
 
     return NRF_SUCCESS;
 }
