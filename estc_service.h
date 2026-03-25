@@ -2,6 +2,7 @@
 #define ESTC_SERVICE_H__
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "ble.h"
 #include "sdk_errors.h"
@@ -39,6 +40,9 @@ typedef struct ble_estc_service_s
 
     ble_gatts_char_handles_t led_state_handles;
     ble_gatts_char_handles_t led_color_handles;
+
+    bool is_led_state_notifying;
+    bool is_led_color_notifying;
 
     ble_estc_evt_handler_t evt_handler;
 } ble_estc_service_t;

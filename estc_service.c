@@ -30,6 +30,8 @@ ret_code_t estc_ble_service_init(ble_estc_service_t *service)
     APP_ERROR_CHECK(error_code);
 
     service->connection_handle = BLE_CONN_HANDLE_INVALID;
+    service->is_led_state_notifying = false;
+    service->is_led_color_notifying = false;
 
     return estc_ble_add_characteristics(service);
 }
@@ -127,6 +129,8 @@ void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
 
         case BLE_GAP_EVT_DISCONNECTED:
             service->connection_handle = BLE_CONN_HANDLE_INVALID;
+            service->is_led_state_notifying = false;
+            service->is_led_color_notifying = false;
             break;
 
         case BLE_GATTS_EVT_HVC:
@@ -137,7 +141,17 @@ void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
         case BLE_GATTS_EVT_WRITE:
         {
             ble_gatts_evt_write_t const * p_evt_write = &ble_evt->evt.gatts_evt.params.write;
-            if (p_evt_write->handle == service->led_state_handles.value_handle && p_evt_write->len == sizeof(uint8_t))
+            
+            if (p_evt_write->handle == service->led_state_handles.cccd_handle && p_evt_write->len == 2)
+            {
+                service->is_led_state_notifying = ble_srv_is_notification_enabled(p_evt_write->data);
+            }
+            else if (p_evt_write->handle == service->led_color_handles.cccd_handle && p_evt_write->len == 2)
+            {
+                service->is_led_color_notifying = ble_srv_is_notification_enabled(p_evt_write->data);
+            }
+            else if (p_evt_write->handle == service->led_state_handles.value_handle 
+                && p_evt_write->len == sizeof(uint8_t))
             {
                 if (service->evt_handler != NULL)
                 {
@@ -147,7 +161,8 @@ void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
                     service->evt_handler(service, &evt);
                 }
             }
-            else if (p_evt_write->handle == service->led_color_handles.value_handle && p_evt_write->len == sizeof(uint32_t))
+            else if (p_evt_write->handle == service->led_color_handles.value_handle 
+                && p_evt_write->len == sizeof(uint32_t))
             {
                 if (service->evt_handler != NULL)
                 {
@@ -179,15 +194,18 @@ void estc_update_led_state(ble_estc_service_t *service, uint8_t state)
     gatts_value.p_value = &state;
     sd_ble_gatts_value_set(service->connection_handle, service->led_state_handles.value_handle, &gatts_value);
 
-    uint16_t len = sizeof(uint8_t);
-    ble_gatts_hvx_params_t hvx_params = {0};
-    hvx_params.handle = service->led_state_handles.value_handle;
-    hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
-    hvx_params.offset = 0;
-    hvx_params.p_len  = &len;
-    hvx_params.p_data = &state;
+    if (service->is_led_state_notifying)
+    {
+        uint16_t len = sizeof(uint8_t);
+        ble_gatts_hvx_params_t hvx_params = {0};
+        hvx_params.handle = service->led_state_handles.value_handle;
+        hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+        hvx_params.offset = 0;
+        hvx_params.p_len  = &len;
+        hvx_params.p_data = &state;
 
-    sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+        sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+    }
 }
 
 void estc_update_led_color(ble_estc_service_t *service, uint32_t color)
@@ -203,13 +221,16 @@ void estc_update_led_color(ble_estc_service_t *service, uint32_t color)
     gatts_value.p_value = (uint8_t*)&color;
     sd_ble_gatts_value_set(service->connection_handle, service->led_color_handles.value_handle, &gatts_value);
 
-    uint16_t len = sizeof(uint32_t);
-    ble_gatts_hvx_params_t hvx_params = {0};
-    hvx_params.handle = service->led_color_handles.value_handle;
-    hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
-    hvx_params.offset = 0;
-    hvx_params.p_len  = &len;
-    hvx_params.p_data = (uint8_t *)&color;
+    if (service->is_led_color_notifying)
+    {
+        uint16_t len = sizeof(uint32_t);
+        ble_gatts_hvx_params_t hvx_params = {0};
+        hvx_params.handle = service->led_color_handles.value_handle;
+        hvx_params.type   = BLE_GATT_HVX_NOTIFICATION;
+        hvx_params.offset = 0;
+        hvx_params.p_len  = &len;
+        hvx_params.p_data = (uint8_t *)&color;
 
-    sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+        sd_ble_gatts_hvx(service->connection_handle, &hvx_params);
+    }
 }
