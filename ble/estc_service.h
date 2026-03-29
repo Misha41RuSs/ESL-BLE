@@ -13,8 +13,8 @@
 // TODO: 2. Pick a random service 16-bit UUID and define it:
 #define ESTC_SERVICE_UUID 0x6577
 
-#define ESTC_GATT_CHAR_LED_STATE_UUID 0x6578   // Read/Write/Notify 
-#define ESTC_GATT_CHAR_LED_COLOR_UUID 0x6579   // Read/Write/Notify 
+#define ESTC_GATT_CHAR_LED_STATE_UUID 0x6578   
+#define ESTC_GATT_CHAR_LED_COLOR_UUID 0x6579   
 
 typedef enum {
     BLE_ESTC_EVT_LED_STATE_WRITE,
@@ -51,7 +51,7 @@ ret_code_t estc_ble_service_init(ble_estc_service_t *service);
 
 void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx);
 
-void estc_update_led_state(ble_estc_service_t *service, uint8_t state);
-void estc_update_led_color(ble_estc_service_t *service, uint32_t color);
+void estc_update_led_state(ble_estc_service_t *service, uint8_t state, bool update_gatts);
+void estc_update_led_color(ble_estc_service_t *service, uint32_t color, bool update_gatts);
 
 #endif /* ESTC_SERVICE_H__ */

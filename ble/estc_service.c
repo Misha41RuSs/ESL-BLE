@@ -181,18 +181,22 @@ void estc_ble_service_on_ble_event(const ble_evt_t *ble_evt, void *ctx)
 }
 
 
-void estc_update_led_state(ble_estc_service_t *service, uint8_t state)
+void estc_update_led_state(ble_estc_service_t *service, uint8_t state, bool update_gatts)
 {
     if (service->connection_handle == BLE_CONN_HANDLE_INVALID)
     {
         return; 
     }
 
-    ble_gatts_value_t gatts_value = {0};
-    gatts_value.len     = sizeof(uint8_t);
-    gatts_value.offset  = 0;
-    gatts_value.p_value = &state;
-    sd_ble_gatts_value_set(service->connection_handle, service->led_state_handles.value_handle, &gatts_value);
+    if (update_gatts)
+    {
+        ble_gatts_value_t gatts_value = {0};
+        gatts_value.len     = sizeof(uint8_t);
+        gatts_value.offset  = 0;
+        gatts_value.p_value = &state;
+        sd_ble_gatts_value_set(service->connection_handle,
+             service->led_state_handles.value_handle, &gatts_value);
+    }
 
     if (service->is_led_state_notifying)
     {
@@ -208,18 +212,21 @@ void estc_update_led_state(ble_estc_service_t *service, uint8_t state)
     }
 }
 
-void estc_update_led_color(ble_estc_service_t *service, uint32_t color)
+void estc_update_led_color(ble_estc_service_t *service, uint32_t color, bool update_gatts)
 {
     if (service->connection_handle == BLE_CONN_HANDLE_INVALID)
     {
         return; 
     }
 
-    ble_gatts_value_t gatts_value = {0};
-    gatts_value.len     = sizeof(uint32_t);
-    gatts_value.offset  = 0;
-    gatts_value.p_value = (uint8_t*)&color;
-    sd_ble_gatts_value_set(service->connection_handle, service->led_color_handles.value_handle, &gatts_value);
+    if (update_gatts)
+    {
+        ble_gatts_value_t gatts_value = {0};
+        gatts_value.len     = sizeof(uint32_t);
+        gatts_value.offset  = 0;
+        gatts_value.p_value = (uint8_t*)&color;
+        sd_ble_gatts_value_set(service->connection_handle, service->led_color_handles.value_handle, &gatts_value);
+    }
 
     if (service->is_led_color_notifying)
     {
