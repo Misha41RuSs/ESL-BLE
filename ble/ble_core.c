@@ -21,7 +21,6 @@
 #include "nrf_log_ctrl.h"
 
 #include "smart_led.h"
-#include "app_fds.h"
 #include "estc_service.h"
 
 #define DEVICE_NAME                     "Mikhail Shvets"
@@ -56,29 +55,21 @@ static ble_uuid_t m_adv_uuids[] =
 
 static void on_custom_ble_evt(ble_estc_service_t *service, ble_estc_evt_t *evt)
 {
-    volatile led_ctx_t *ctx = &m_led_ctx;
     switch (evt->evt_type)
     {
         case BLE_ESTC_EVT_LED_STATE_WRITE:
-            ctx->state.state = (evt->params.led_state == 0) ? 0 : 1;
-            app_fds_save_config(ctx);
-            estc_update_led_state(&m_estc_service, ctx->state.state, false);
-            apply_led_pwm(ctx, calculate_indicator(ctx));
+            smart_led_set_state(evt->params.led_state != 0);
+            estc_update_led_state(&m_estc_service, evt->params.led_state, false);
             break;
 
         case BLE_ESTC_EVT_LED_COLOR_WRITE:
-            unpack_hsv(evt->params.led_color, (float*)&ctx->state.h, (int*)&ctx->state.s, (int*)&ctx->state.v);
-            if (evt->params.led_color == 0) {
-                ctx->state.state = 0;
-                estc_update_led_state(&m_estc_service, ctx->state.state, true);
-            } else if (ctx->state.state == 0) {
-                ctx->state.state = 1;
-                estc_update_led_state(&m_estc_service, ctx->state.state, true);
-            }
-            app_fds_save_config(ctx);
+        {
+            float h; int s, v;
+            unpack_hsv(evt->params.led_color, &h, &s, &v);
+            smart_led_set_color(h, s, v);
             estc_update_led_color(&m_estc_service, evt->params.led_color, false);
-            apply_led_pwm(ctx, calculate_indicator(ctx));
             break;
+        }
     }
 }
 
@@ -226,9 +217,8 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             estc_ble_service_on_ble_event(p_ble_evt, &m_estc_service);
 
             {
-                volatile led_ctx_t *ctx = &m_led_ctx;
-                estc_update_led_state(&m_estc_service, ctx->state.state, true);
-                estc_update_led_color(&m_estc_service, pack_hsv(ctx->state.h, ctx->state.s, ctx->state.v), true);
+                estc_update_led_state(&m_estc_service, smart_led_get_state() ? 1 : 0, true);
+                estc_update_led_color(&m_estc_service, smart_led_get_color_pack(), true);
             }
             break;
 
@@ -294,6 +284,16 @@ static void advertising_init(void)
     ble_advertising_conn_cfg_tag_set(&m_advertising, APP_BLE_CONN_CFG_TAG);
 }
 
+static void on_led_state_changed(bool state)
+{
+    estc_update_led_state(&m_estc_service, state ? 1 : 0, true);
+}
+
+static void on_led_color_changed(uint32_t color_packed)
+{
+    estc_update_led_color(&m_estc_service, color_packed, true);
+}
+
 void ble_core_init(void)
 {
     ble_stack_init();
@@ -301,6 +301,7 @@ void ble_core_init(void)
     gatt_init();
     peer_manager_init();
     services_init();
+    smart_led_set_callbacks(on_led_state_changed, on_led_color_changed);
     m_adv_uuids[1].type = m_estc_service.uuid_type;
     advertising_init();
     conn_params_init();

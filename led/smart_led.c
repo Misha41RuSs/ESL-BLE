@@ -6,9 +6,9 @@
 #include "nrf_pwm.h"
 #include "math.h"
 #include "app_fds.h"
-#include "estc_service.h"
 
-extern ble_estc_service_t m_estc_service;
+static smart_led_state_cb_t m_state_cb = NULL;
+static smart_led_color_cb_t m_color_cb = NULL;
 
 volatile led_ctx_t m_led_ctx = {
     .state = {0, 0.0f, 100, 100},
@@ -94,7 +94,7 @@ static void pwm_write_channels(uint16_t ch0, uint16_t ch1, uint16_t ch2, uint16_
     m_seq_values.channel_3 = ch3;
 }
 
-uint16_t calculate_indicator(volatile led_ctx_t *ctx) {
+static uint16_t calculate_indicator(volatile led_ctx_t *ctx) {
     uint16_t ind = 0;
     if (ctx->mode == MODE_NONE) {
         ind = ctx->state.state ? 0 : 0;
@@ -120,7 +120,7 @@ uint16_t calculate_indicator(volatile led_ctx_t *ctx) {
     return ind;
 }
 
-void apply_led_pwm(volatile led_ctx_t *ctx, uint16_t ind) {
+static void apply_led_pwm(volatile led_ctx_t *ctx, uint16_t ind) {
     uint16_t r, g, b;
     bool is_on = ctx->state.state || ctx->mode != MODE_NONE;
     if (is_on) {
@@ -131,7 +131,7 @@ void apply_led_pwm(volatile led_ctx_t *ctx, uint16_t ind) {
     pwm_write_channels(ind, r, g, b);
 }
 
-void smart_led_update_indicator_params_for_mode(volatile led_ctx_t *ctx) {
+static void smart_led_update_indicator_params_for_mode(volatile led_ctx_t *ctx) {
     app_timer_stop(main_timer);
     switch (ctx->mode) {
         case MODE_NONE:
@@ -209,8 +209,8 @@ void debounce_timer_handler(void *p_context) {
             if (ctx->mode == MODE_NONE && old_mode != MODE_NONE) {
                 ctx->state.state = 1;
                 app_fds_save_config(ctx);
-                estc_update_led_color(&m_estc_service, pack_hsv(ctx->state.h, ctx->state.s, ctx->state.v), true);
-                estc_update_led_state(&m_estc_service, ctx->state.state, true);
+                if (m_color_cb) m_color_cb(pack_hsv(ctx->state.h, ctx->state.s, ctx->state.v));
+                if (m_state_cb) m_state_cb(ctx->state.state != 0);
             }
             ctx->dir_h = 1; ctx->dir_s = 1; ctx->dir_v = 1;
             smart_led_update_indicator_params_for_mode(ctx);
@@ -230,8 +230,7 @@ void double_click_timer_handler(void *p_context) {
     if (ctx->mode == MODE_NONE && !ctx->button_held) {
         ctx->state.state = ctx->state.state ? 0 : 1;
         app_fds_save_config(ctx);
-        
-        estc_update_led_state(&m_estc_service, ctx->state.state, true);
+        if (m_state_cb) m_state_cb(ctx->state.state != 0);
     }
     ctx->first_click_detected = false;
     apply_led_pwm(ctx, calculate_indicator(ctx));
@@ -294,4 +293,52 @@ void smart_led_init(void) {
     pwm_init();
     button_init();
     smart_led_update_indicator_params_for_mode(&m_led_ctx);
+}
+
+void smart_led_set_callbacks(smart_led_state_cb_t state_cb, smart_led_color_cb_t color_cb) {
+    m_state_cb = state_cb;
+    m_color_cb = color_cb;
+}
+
+void smart_led_set_color(float h, int s, int v) {
+    volatile led_ctx_t *ctx = &m_led_ctx;
+    bool state_changed = false;
+    
+    if (h == 0.0f && s == 0 && v == 0) {
+        if (ctx->state.state != 0) {
+            ctx->state.state = 0;
+            state_changed = true;
+        }
+    } else if (ctx->state.state == 0) {
+        ctx->state.state = 1;
+        state_changed = true;
+    }
+    
+    ctx->state.h = h;
+    ctx->state.s = s;
+    ctx->state.v = v;
+    
+    app_fds_save_config(ctx);
+    apply_led_pwm(ctx, calculate_indicator(ctx));
+    
+    if (state_changed && m_state_cb) {
+        m_state_cb(ctx->state.state != 0);
+    }
+}
+
+void smart_led_set_state(bool state) {
+    volatile led_ctx_t *ctx = &m_led_ctx;
+    ctx->state.state = state ? 1 : 0;
+    app_fds_save_config(ctx);
+    apply_led_pwm(ctx, calculate_indicator(ctx));
+}
+
+uint32_t smart_led_get_color_pack(void) {
+    volatile led_ctx_t *ctx = &m_led_ctx;
+    return pack_hsv(ctx->state.h, ctx->state.s, ctx->state.v);
+}
+
+bool smart_led_get_state(void) {
+    volatile led_ctx_t *ctx = &m_led_ctx;
+    return ctx->state.state != 0;
 }

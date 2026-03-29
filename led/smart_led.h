@@ -62,11 +62,18 @@ typedef struct {
 
 extern volatile led_ctx_t m_led_ctx;
 
+typedef void (*smart_led_state_cb_t)(bool state);
+typedef void (*smart_led_color_cb_t)(uint32_t color_packed);
+
 void smart_led_init(void);
-void smart_led_update_indicator_params_for_mode(volatile led_ctx_t *ctx);
+void smart_led_set_callbacks(smart_led_state_cb_t state_cb, smart_led_color_cb_t color_cb);
+
+void smart_led_set_color(float h, int s, int v);
+void smart_led_set_state(bool state);
+uint32_t smart_led_get_color_pack(void);
+bool smart_led_get_state(void);
+
 uint32_t pack_hsv(float h, int s, int v);
 void unpack_hsv(uint32_t packed, float *h, int *s, int *v);
-void apply_led_pwm(volatile led_ctx_t *ctx, uint16_t ind);
-uint16_t calculate_indicator(volatile led_ctx_t *ctx);
 
 #endif // SMART_LED_H__
